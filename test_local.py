@@ -1,30 +1,57 @@
 """
-Quick test script to verify Modal deployment
-Run with: python test_local.py
+Test both cloning and synthesis
 """
 
 import modal
-import json
+import requests
+import base64
+import time
 
-def test_modal_synthesis():
-    # Look up your deployed function
+def test_synthesis():
+    """Test synthesis with preset and cloned voices"""
     f = modal.Function.lookup("voice-synthesis-fast", "synthesize_speech")
     
-    # Test synthesis
+    # Test preset voice
+    print("Testing preset voice (Jenny)...")
     result = f.remote(
-        text="Testing Modal GPU synthesis. This should be fast!",
-        voice_id="default"
+        text="Testing Modal GPU synthesis. This should take 2-3 seconds!",
+        voice_id="jenny",
+        return_format="wav"
     )
     
-    print(f"✅ Synthesis completed in {result['generation_time']:.2f} seconds")
-    print(f"✅ Audio generated: {len(result['audio_base64'])} bytes")
+    print(f"✅ Generated in {result['generation_time']:.2f} seconds")
     
-    # Save test audio
-    import base64
-    audio_data = base64.b64decode(result['audio_base64'])
-    with open("test_output.wav", "wb") as f:
-        f.write(audio_data)
-    print("✅ Audio saved to test_output.wav")
+    # Save audio
+    audio_bytes = base64.b64decode(result['audio_data'])
+    with open("test_jenny.wav", "wb") as file:
+        file.write(audio_bytes)
+    print("✅ Saved to test_jenny.wav")
+    
+    # List all voices
+    list_f = modal.Function.lookup("voice-synthesis-fast", "list_voices")
+    voices = list_f.remote()
+    print(f"\n📢 Available voices: {voices['total']}")
+    print(f"  Default: {voices['default_voice']}")
+
+def test_api():
+    """Test the HTTP API endpoints"""
+    print("\nTesting HTTP API...")
+    
+    # Assuming you're running: modal serve deploy.py
+    base_url = "http://localhost:8000"
+    
+    # Test synthesis endpoint (returns audio/wav)
+    response = requests.post(
+        f"{base_url}/synthesize",
+        json={"text": "Testing API endpoint", "voice_id": "jenny"}
+    )
+    
+    if response.status_code == 200:
+        with open("test_api.wav", "wb") as f:
+            f.write(response.content)
+        print("✅ API test successful - saved test_api.wav")
+        print(f"   Generation time: {response.headers.get('X-Generation-Time')}s")
 
 if __name__ == "__main__":
-    test_modal_synthesis()
+    test_synthesis()
+    # test_api()  # Uncomment if running modal serve
